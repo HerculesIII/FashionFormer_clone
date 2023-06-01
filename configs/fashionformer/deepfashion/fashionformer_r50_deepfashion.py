@@ -1,24 +1,80 @@
-_base_ = [
-    '../../_base_/models/fashionformer_r50_fpn.py',
-    '../../_base_/default_runtime.py',
-]
-
 num_stages = 3
 num_proposals = 100
 conv_kernel_size = 1
 model = dict(
+    type='FashionFormer',
     backbone=dict(
+        type='ResNet',
+        depth=50,
+        num_stages=4,
+        out_indices=(0, 1, 2, 3),
+        frozen_stages=1,
         norm_cfg=dict(type='BN', requires_grad=True),
         norm_eval=False,
-    ),
-    rpn_head=dict(num_classes=15, ),
+        style='pytorch',
+        init_cfg=dict(type='Pretrained', checkpoint='torchvision://resnet50')),
+    neck=dict(
+        type='FPN',
+        in_channels=[256, 512, 1024, 2048],
+        out_channels=256,
+        start_level=0,
+        add_extra_convs='on_input',
+        num_outs=4),
+    rpn_head=dict(
+        type='ConvKernelHead',
+        cat_stuff_mask=False,
+        conv_kernel_size=1,
+        feat_downsample_stride=2,
+        feat_refine_stride=1,
+        feat_refine=False,
+        use_binary=True,
+        num_loc_convs=1,
+        num_seg_convs=1,
+        conv_normal_init=True,
+        localization_fpn=dict(
+            type='SemanticFPNWrapper',
+            in_channels=256,
+            feat_channels=256,
+            out_channels=256,
+            start_level=0,
+            end_level=3,
+            upsample_times=2,
+            positional_encoding=dict(
+                type='SinePositionalEncoding', num_feats=128, normalize=True),
+            cat_coors=False,
+            cat_coors_level=3,
+            fuse_by_cat=False,
+            return_list=False,
+            num_aux_convs=1,
+            norm_cfg=dict(type='GN', num_groups=32, requires_grad=True)),
+        num_proposals=100,
+        proposal_feats_with_obj=True,
+        xavier_init_kernel=False,
+        kernel_init_std=1,
+        num_cls_fcs=1,
+        in_channels=256,
+        num_classes=12,
+        feat_transform_cfg=None,
+        loss_seg=dict(
+            type='FocalLoss',
+            use_sigmoid=True,
+            gamma=2.0,
+            alpha=0.25,
+            loss_weight=1.0),
+        loss_mask=dict(
+            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0),
+        loss_dice=dict(type='DiceLoss', loss_weight=4.0)),
     roi_head=dict(
+        type='KernelIterHead',
+        num_stages=3,
+        stage_loss_weights=[1, 1, 1],
+        proposal_feature_channel=256,
         mask_head=[
             dict(
                 type='KernelUpdateHead',
                 dataset_type='deepfashion',
                 attr_query=True,
-                num_classes=15,
+                num_classes=12,
                 num_ffn_fcs=2,
                 num_heads=8,
                 num_cls_fcs=1,
@@ -28,11 +84,12 @@ model = dict(
                 out_channels=256,
                 dropout=0.0,
                 mask_thr=0.5,
-                conv_kernel_size=conv_kernel_size,
+                conv_kernel_size=1,
                 mask_upsample_stride=2,
                 ffn_act_cfg=dict(type='ReLU', inplace=True),
                 with_ffn=True,
-                feat_transform_cfg=dict(conv_cfg=dict(type='Conv2d'), act_cfg=None),
+                feat_transform_cfg=dict(
+                    conv_cfg=dict(type='Conv2d'), act_cfg=None),
                 kernel_updator_cfg=dict(
                     type='KernelUpdator',
                     in_channels=256,
@@ -42,29 +99,153 @@ model = dict(
                     act_cfg=dict(type='ReLU', inplace=True),
                     norm_cfg=dict(type='LN')),
                 loss_mask=dict(
-                    type='CrossEntropyLoss',
-                    use_sigmoid=True,
+                    type='CrossEntropyLoss', use_sigmoid=True,
                     loss_weight=1.0),
-                loss_dice=dict(
-                    type='DiceLoss', loss_weight=4.0),
+                loss_dice=dict(type='DiceLoss', loss_weight=4.0),
                 loss_cls=dict(
                     type='FocalLoss',
                     use_sigmoid=True,
                     gamma=2.0,
                     alpha=0.25,
-                    loss_weight=2.0)) for _ in range(num_stages)
+                    loss_weight=2.0)),
+            dict(
+                type='KernelUpdateHead',
+                dataset_type='deepfashion',
+                attr_query=True,
+                num_classes=12,
+                num_ffn_fcs=2,
+                num_heads=8,
+                num_cls_fcs=1,
+                num_mask_fcs=1,
+                feedforward_channels=2048,
+                in_channels=256,
+                out_channels=256,
+                dropout=0.0,
+                mask_thr=0.5,
+                conv_kernel_size=1,
+                mask_upsample_stride=2,
+                ffn_act_cfg=dict(type='ReLU', inplace=True),
+                with_ffn=True,
+                feat_transform_cfg=dict(
+                    conv_cfg=dict(type='Conv2d'), act_cfg=None),
+                kernel_updator_cfg=dict(
+                    type='KernelUpdator',
+                    in_channels=256,
+                    feat_channels=256,
+                    out_channels=256,
+                    input_feat_shape=3,
+                    act_cfg=dict(type='ReLU', inplace=True),
+                    norm_cfg=dict(type='LN')),
+                loss_mask=dict(
+                    type='CrossEntropyLoss', use_sigmoid=True,
+                    loss_weight=1.0),
+                loss_dice=dict(type='DiceLoss', loss_weight=4.0),
+                loss_cls=dict(
+                    type='FocalLoss',
+                    use_sigmoid=True,
+                    gamma=2.0,
+                    alpha=0.25,
+                    loss_weight=2.0)),
+            dict(
+                type='KernelUpdateHead',
+                dataset_type='deepfashion',
+                attr_query=True,
+                num_classes=12,
+                num_ffn_fcs=2,
+                num_heads=8,
+                num_cls_fcs=1,
+                num_mask_fcs=1,
+                feedforward_channels=2048,
+                in_channels=256,
+                out_channels=256,
+                dropout=0.0,
+                mask_thr=0.5,
+                conv_kernel_size=1,
+                mask_upsample_stride=2,
+                ffn_act_cfg=dict(type='ReLU', inplace=True),
+                with_ffn=True,
+                feat_transform_cfg=dict(
+                    conv_cfg=dict(type='Conv2d'), act_cfg=None),
+                kernel_updator_cfg=dict(
+                    type='KernelUpdator',
+                    in_channels=256,
+                    feat_channels=256,
+                    out_channels=256,
+                    input_feat_shape=3,
+                    act_cfg=dict(type='ReLU', inplace=True),
+                    norm_cfg=dict(type='LN')),
+                loss_mask=dict(
+                    type='CrossEntropyLoss', use_sigmoid=True,
+                    loss_weight=1.0),
+                loss_dice=dict(type='DiceLoss', loss_weight=4.0),
+                loss_cls=dict(
+                    type='FocalLoss',
+                    use_sigmoid=True,
+                    gamma=2.0,
+                    alpha=0.25,
+                    loss_weight=2.0))
         ]),
-)
-
+    train_cfg=dict(
+        rpn=dict(
+            assigner=dict(
+                type='MaskHungarianAssigner',
+                cls_cost=dict(type='FocalLossCost', weight=2.0),
+                dice_cost=dict(type='DiceCost', weight=4.0, pred_act=True),
+                mask_cost=dict(type='MaskCost', weight=1.0, pred_act=True)),
+            sampler=dict(type='MaskPseudoSampler'),
+            pos_weight=1),
+        rcnn=[
+            dict(
+                assigner=dict(
+                    type='MaskHungarianAssigner',
+                    cls_cost=dict(type='FocalLossCost', weight=2.0),
+                    dice_cost=dict(type='DiceCost', weight=4.0, pred_act=True),
+                    mask_cost=dict(type='MaskCost', weight=1.0,
+                                   pred_act=True)),
+                sampler=dict(type='MaskPseudoSampler'),
+                pos_weight=1),
+            dict(
+                assigner=dict(
+                    type='MaskHungarianAssigner',
+                    cls_cost=dict(type='FocalLossCost', weight=2.0),
+                    dice_cost=dict(type='DiceCost', weight=4.0, pred_act=True),
+                    mask_cost=dict(type='MaskCost', weight=1.0,
+                                   pred_act=True)),
+                sampler=dict(type='MaskPseudoSampler'),
+                pos_weight=1),
+            dict(
+                assigner=dict(
+                    type='MaskHungarianAssigner',
+                    cls_cost=dict(type='FocalLossCost', weight=2.0),
+                    dice_cost=dict(type='DiceCost', weight=4.0, pred_act=True),
+                    mask_cost=dict(type='MaskCost', weight=1.0,
+                                   pred_act=True)),
+                sampler=dict(type='MaskPseudoSampler'),
+                pos_weight=1)
+        ]),
+    test_cfg=dict(
+        rpn=None,
+        rcnn=dict(
+            max_per_img=100,
+            mask_thr=0.5,
+            merge_stuff_thing=dict(
+                iou_thr=0.5, stuff_max_area=4096, instance_score_thr=0.3))))
 custom_imports = dict(
     imports=[
-        'projects.FashionFormer',
-        'models.necks.semantic_fpn_wrapper',
+        'projects.FashionFormer', 'models.necks.semantic_fpn_wrapper',
         'datasets'
     ],
     allow_failed_imports=False)
-
-dataset_type = 'DeepFashionDataset'
+checkpoint_config = dict(interval=1)
+log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
+dist_params = dict(backend='nccl')
+log_level = 'INFO'
+load_from = None
+resume_from = None
+workflow = [('train', 1)]
+opencv_num_threads = 0
+mp_start_method = 'fork'
+dataset_type = 'CocoDataset'
 data_root = 'data/DeepFashion/In-shop/'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
@@ -73,10 +254,14 @@ train_pipeline = [
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(type='Resize', img_scale=(750, 1101), keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
-    dict(type='Normalize', **img_norm_cfg),
+    dict(
+        type='Normalize',
+        mean=[123.675, 116.28, 103.53],
+        std=[58.395, 57.12, 57.375],
+        to_rgb=True),
     dict(type='Pad', size_divisor=32),
     dict(type='DefaultFormatBundle'),
-    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_masks']),
+    dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_masks'])
 ]
 test_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -87,42 +272,103 @@ test_pipeline = [
         transforms=[
             dict(type='Resize', keep_ratio=True),
             dict(type='RandomFlip'),
-            dict(type='Normalize', **img_norm_cfg),
+            dict(
+                type='Normalize',
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=True),
             dict(type='Pad', size_divisor=32),
             dict(type='ImageToTensor', keys=['img']),
-            dict(type='Collect', keys=['img']),
+            dict(type='Collect', keys=['img'])
         ])
 ]
-
 data = dict(
-    imgs_per_gpu=2,
-    workers_per_gpu=2,
+    samples_per_gpu=1,
+    workers_per_gpu=1,
     train=dict(
-        type=dataset_type,
-        ann_file=data_root + 'annotations/DeepFashion_segmentation_train.json',
-        img_prefix=data_root + 'Img/',
-        pipeline=train_pipeline,
-    ),
+        type='CocoDataset',
+        ann_file=
+        '/content/drive/MyDrive/Colab Notebooks/Segmentation/Dataset/train7500.json',
+        img_prefix='',
+        classes=('s sl top', 'l sl top', 'l sl outwear', 'vest', 'sling',
+                 'shorts', 'trousers', 'skirt', 's sl dress', 'l sl dress',
+                 'vest dress', 'sling dress'),
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
+            dict(type='Resize', img_scale=(750, 1101), keep_ratio=True),
+            dict(type='RandomFlip', flip_ratio=0.5),
+            dict(
+                type='Normalize',
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=True),
+            dict(type='Pad', size_divisor=32),
+            dict(type='DefaultFormatBundle'),
+            dict(
+                type='Collect',
+                keys=['img', 'gt_bboxes', 'gt_labels', 'gt_masks'])
+        ]),
     val=dict(
-        type=dataset_type,
-        ann_file=data_root + 'annotations/DeepFashion_segmentation_query.json',
-        img_prefix=data_root + 'Img/',
-        pipeline=test_pipeline,
-    ),
+        type='CocoDataset',
+        ann_file=
+        '/content/drive/MyDrive/Colab Notebooks/Segmentation/Dataset/val7500.json',
+        img_prefix='',
+        classes=('s sl top', 'l sl top', 'l sl outwear', 'vest', 'sling',
+                 'shorts', 'trousers', 'skirt', 's sl dress', 'l sl dress',
+                 'vest dress', 'sling dress'),
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(750, 1101),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='Pad', size_divisor=32),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]),
     test=dict(
-        type=dataset_type,
-        ann_file=data_root + 'annotations/DeepFashion_segmentation_gallery.json',
-        img_prefix=data_root + 'Img/',
-        pipeline=test_pipeline,
-    ))
-
+        type='CocoDataset',
+        ann_file=
+        '/content/drive/MyDrive/Colab Notebooks/Segmentation/Dataset/test7500.json',
+        img_prefix='',
+        classes=('s sl top', 'l sl top', 'l sl outwear', 'vest', 'sling',
+                 'shorts', 'trousers', 'skirt', 's sl dress', 'l sl dress',
+                 'vest dress', 'sling dress'),
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(750, 1101),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='Pad', size_divisor=32),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]))
 optimizer = dict(
     type='AdamW',
-    lr=0.0001,
+    lr=0.001,
     weight_decay=0.05,
-    paramwise_cfg=dict(custom_keys={'backbone': dict(lr_mult=0.25)}))
+    paramwise_cfg=dict(custom_keys=dict(backbone=dict(lr_mult=0.25))))
 optimizer_config = dict(grad_clip=dict(max_norm=1, norm_type=2))
-# learning policy
 lr_config = dict(
     policy='step',
     warmup='linear',
@@ -131,3 +377,5 @@ lr_config = dict(
     step=[8, 11])
 runner = dict(type='EpochBasedRunner', max_epochs=12)
 evaluation = dict(metric=['segm'])
+work_dir = '/content/drive/MyDrive/Colab Notebooks/Segmentation/Weights'
+gpu_ids = range(0, 1)

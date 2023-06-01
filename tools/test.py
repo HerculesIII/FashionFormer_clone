@@ -2,6 +2,9 @@ import argparse
 import os
 import warnings
 
+import sys
+sys.path.insert(0, '/content/FashionFormer_clone')
+
 import mmcv
 import torch
 from mmcv import Config, DictAction

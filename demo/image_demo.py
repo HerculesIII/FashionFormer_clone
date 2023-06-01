@@ -3,6 +3,8 @@ from argparse import ArgumentParser
 
 from mmdet.apis import  inference_detector,init_detector
 
+import sys
+sys.path.insert(0, '/content/FashionFormer_clone')
 
 def parse_args():
     parser = ArgumentParser()
