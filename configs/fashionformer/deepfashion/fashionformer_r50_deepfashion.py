@@ -53,7 +53,7 @@ model = dict(
         kernel_init_std=1,
         num_cls_fcs=1,
         in_channels=256,
-        num_classes=12,
+        num_classes=8,
         feat_transform_cfg=None,
         loss_seg=dict(
             type='FocalLoss',
@@ -74,7 +74,7 @@ model = dict(
                 type='KernelUpdateHead',
                 dataset_type='deepfashion',
                 attr_query=True,
-                num_classes=12,
+                num_classes=8,
                 num_ffn_fcs=2,
                 num_heads=8,
                 num_cls_fcs=1,
@@ -112,7 +112,7 @@ model = dict(
                 type='KernelUpdateHead',
                 dataset_type='deepfashion',
                 attr_query=True,
-                num_classes=12,
+                num_classes=8,
                 num_ffn_fcs=2,
                 num_heads=8,
                 num_cls_fcs=1,
@@ -150,7 +150,7 @@ model = dict(
                 type='KernelUpdateHead',
                 dataset_type='deepfashion',
                 attr_query=True,
-                num_classes=12,
+                num_classes=8,
                 num_ffn_fcs=2,
                 num_heads=8,
                 num_cls_fcs=1,
@@ -240,7 +240,7 @@ checkpoint_config = dict(interval=1)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = None
+load_from = '/content/drive/MyDrive/Colab Notebooks/Segmentation/Weights/fashionformer_r50_3x.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0
@@ -252,7 +252,7 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
-    dict(type='Resize', img_scale=(750, 1101), keep_ratio=True),
+    dict(type='Resize', img_scale=(700, 1000), keep_ratio=True),
     dict(type='RandomFlip', flip_ratio=0.5),
     dict(
         type='Normalize',
@@ -283,20 +283,18 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    samples_per_gpu=1,
-    workers_per_gpu=1,
+    samples_per_gpu=2,
+    workers_per_gpu=2,
     train=dict(
         type='CocoDataset',
         ann_file=
-        '/content/drive/MyDrive/Colab Notebooks/Segmentation/Dataset/train7500.json',
+        '/content/drive/MyDrive/Colab Notebooks/Segmentation/Dataset/train_8itemremoveinside.json',
         img_prefix='',
-        classes=('s sl top', 'l sl top', 'l sl outwear', 'vest', 'sling',
-                 'shorts', 'trousers', 'skirt', 's sl dress', 'l sl dress',
-                 'vest dress', 'sling dress'),
+        classes=('s sl top', 'l sl top', 'l sl outwear', 'shorts', 'trousers', 'skirt', 'dress', 'singleobject'),
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
-            dict(type='Resize', img_scale=(750, 1101), keep_ratio=True),
+            dict(type='Resize', img_scale=(700, 1000), keep_ratio=True),
             dict(type='RandomFlip', flip_ratio=0.5),
             dict(
                 type='Normalize',
@@ -312,16 +310,14 @@ data = dict(
     val=dict(
         type='CocoDataset',
         ann_file=
-        '/content/drive/MyDrive/Colab Notebooks/Segmentation/Dataset/val7500.json',
+        '/content/drive/MyDrive/Colab Notebooks/Segmentation/Dataset/test_8itemremoveinside.json',
         img_prefix='',
-        classes=('s sl top', 'l sl top', 'l sl outwear', 'vest', 'sling',
-                 'shorts', 'trousers', 'skirt', 's sl dress', 'l sl dress',
-                 'vest dress', 'sling dress'),
+        classes=('s sl top', 'l sl top', 'l sl outwear', 'shorts', 'trousers', 'skirt', 'dress', 'singleobject'),
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
                 type='MultiScaleFlipAug',
-                img_scale=(750, 1101),
+                img_scale=(700, 1000),
                 flip=False,
                 transforms=[
                     dict(type='Resize', keep_ratio=True),
@@ -374,8 +370,8 @@ lr_config = dict(
     warmup='linear',
     warmup_iters=1000,
     warmup_ratio=0.001,
-    step=[8, 11])
-runner = dict(type='EpochBasedRunner', max_epochs=12)
+    step=[1, 2])
+runner = dict(type='EpochBasedRunner', max_epochs=2)
 evaluation = dict(metric=['segm'])
 work_dir = '/content/drive/MyDrive/Colab Notebooks/Segmentation/Weights'
 gpu_ids = range(0, 1)
